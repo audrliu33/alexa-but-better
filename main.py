@@ -11,6 +11,9 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 import openai
+from openai import OpenAI
+
+client = OpenAI()
 
 
 # Function to authenticate and create a Gmail API service
@@ -98,7 +101,52 @@ def analyze_email(content):
     )
     return response.choices[0].text.strip()
 
+browse = {
+    "name": "highLevelBrowse",
+    "description": "Browse the web using natural language instructions. This tool enables control over web browsers to fetch and interact with web content.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "instruction": {"type": "string", "description": "Detailed natural language instruction for browsing."},
+            "url": {"type": "string", "description": "Optional starting URL for the browsing session."}
+        },
+        "required": ["instruction"]
+    }
+}
 
+def agent(query: str):
+    # Create an Assistant with the MultiOn Browse API
+    assistant = client.beta.assistants.create(
+        instructions="You are an assistant with the capability to browse the web. Use the MultiOn browser to assist users in fetching and interacting with web content.",
+        model="gpt-4-1106-preview",  
+        tools=[{
+            "type": "function",
+            "function": browse
+        }]
+    )
+ 
+    # Create a Thread with the initial user message
+    thread = openai.Thread.create(
+        assistant=assistant.id,
+        messages=[{
+            "role": "user",
+            "content": query
+        }]
+    )
+ 
+    # Run the Assistant on the Thread
+    run = openai.Thread.runs.create(
+        thread_id=thread.id,
+        assistant_id=assistant.id
+    )
+ 
+    # Retrieve the response
+    response = openai.Thread.messages.retrieve(
+        thread_id=thread.id,
+        message_id=run.messages[-1].id
+    )
+ 
+    return response.content
 
 # Main logic
 def main():
