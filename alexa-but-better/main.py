@@ -109,15 +109,6 @@ def send_email(service, user_id, destination, subject, body):
 
 # Function to analyze email with OpenAI API
 def analyze_email(email):
-    # Create an Assistant with the MultiOn Browse API
-    # assistant = client.beta.assistants.create(
-    #     instructions="You are an assistant with the capability to browse the web. Use the MultiOn browser to assist users in fetching and interacting with web content.",
-    #     model="gpt-4-1106-preview",  
-    #     tools=[{
-    #         "type": "function",
-    #         "function": browse
-    #     }]
-    # )
 
     assistant_id = os.getenv("OPENAI_ASSISTANT_ID")
  
@@ -152,10 +143,10 @@ def analyze_email(email):
     response = openai.beta.threads.messages.list(
         thread_id=thread.id,
         limit=1,
-        order='asc',
+        order='desc',
     )
  
-    return response.data[0].content
+    return response.data[0].content[0].text.value
 
 
 # Main logic
