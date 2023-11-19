@@ -16,22 +16,22 @@ import openai
 # Function to authenticate and create a Gmail API service
 def gmail_authenticate():
     creds = None
-    # token.pickle stores the user's credentials
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
 
-    # If there are no valid credentials, let the user log in.
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', 
-                scopes=['https://www.googleapis.com/auth/gmail.readonly']
+                'credentials.json',
+                scopes=[
+                    'https://www.googleapis.com/auth/gmail.readonly',
+                    'https://www.googleapis.com/auth/gmail.compose'
+                ]
             )
             creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
 
@@ -42,16 +42,30 @@ def gmail_authenticate():
 # Function to read emails
 def get_emails(service, user_id='me'):
     # Call the Gmail API
-    results = service.users().messages().list(userId=user_id, labelIds=['INBOX']).execute()
+    results = service.users().messages().list(userId=user_id, labelIds=['INBOX'], maxResults=1).execute()
     messages = results.get('messages', [])
 
     if not messages:
         print("No messages found.")
-        return
-    print("Message snippets:")
-    for message in messages:
-        msg = service.users().messages().get(userId=user_id, id=message['id']).execute()
-        print(msg['snippet'])
+        return None
+    else:
+        message = messages[0]
+        msg = service.users().messages().get(userId=user_id, id=message['id'], format='full').execute()
+
+        headers = msg['payload']['headers']
+        sender = next(header['value'] for header in headers if header['name'] == 'From')
+        subject = next(header['value'] for header in headers if header['name'] == 'Subject')
+
+        # Handle different types of email payloads
+        if 'parts' in msg['payload']:
+            # Multipart email, could be mixed, alternative, related, etc.
+            part = msg['payload']['parts'][0]
+            body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+        else:
+            # Simple email, usually plain text or HTML
+            body = base64.urlsafe_b64decode(msg['payload']['body']['data']).decode('utf-8')
+
+        return sender, subject, body
 
 
 # Function to send emails
@@ -89,9 +103,24 @@ def analyze_email(content):
 # Main logic
 def main():
     service = gmail_authenticate()
-    # Read emails
-    # Analyze with OpenAI API
-    # Send responses or perform actions
+
+    # Read the most recent email and get its details
+    print("Reading the most recent email...")
+    sender, subject, body = get_emails(service)
+    print(f"Sender: {sender}")
+    print(f"Subject: {subject}")
+
+    # Analyze email content with OpenAI (optional, based on your requirement)
+    # print("Analyzing email content...")
+    # analysis = analyze_email(body)
+    # print(f"Analysis: {analysis}")
+
+    # Send a test email (you can replace this with a real recipient and content)
+    print("Sending a test email...")
+    test_email_content = "This is a test email from My Executive Assistant."
+    send_email(service, 'me', 'omiiyamu@gmail.com', 'Test Email from MEA', test_email_content)
+
+    print("All tests completed.")
 
 if __name__ == "__main__":
     main()
